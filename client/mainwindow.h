@@ -22,9 +22,6 @@
 
 #include <QtWidgets/QMainWindow>
 
-#include "lib/room.h"
-#include "lib/jobs/basejob.h"
-
 class RoomListDock;
 class UserListDock;
 class ChatRoomWidget;
@@ -35,6 +32,8 @@ class QAction;
 class QMenu;
 class QMenuBar;
 class QSystemTrayIcon;
+class QMovie;
+class QLabel;
 
 class MainWindow: public QMainWindow
 {
@@ -52,14 +51,15 @@ class MainWindow: public QMainWindow
 
     private slots:
         void initialize();
+        void initialSync();
         void getNewEvents();
         void gotEvents();
-        void loggedOut();
+        void loggedOut(const QString& message = QString());
 
         void connectionError(QString error);
 
         void showJoinRoomDialog();
-        void showLoginWindow();
+        void showLoginWindow(const QString& statusMessage = QString());
         void logout();
 
     private:
@@ -68,12 +68,18 @@ class MainWindow: public QMainWindow
         ChatRoomWidget* chatRoomWidget;
         QuaternionConnection* connection;
 
+        QMovie* busyIndicator;
+        QLabel* busyLabel;
+
         QAction* loginAction;
         QAction* logoutAction;
 
         SystemTray* systemTray;
 
+        void createMenu();
         void invokeLogin();
+        void loadSettings();
+        void saveSettings() const;
 };
 
 #endif // MAINWINDOW_H

@@ -95,14 +95,14 @@ void ChatRoomWidget::enableDebug()
     ctxt->setContextProperty("debug", true);
 }
 
-void ChatRoomWidget::setRoom(QMatrixClient::Room* room)
+void ChatRoomWidget::setRoom(QuaternionRoom* room)
 {
     if( m_currentRoom )
     {
         m_currentRoom->disconnect( this );
         m_currentRoom->setShown(false);
     }
-    m_currentRoom = static_cast<QuaternionRoom*>(room);
+    m_currentRoom = room;
     if( m_currentRoom )
     {
         connect( m_currentRoom, &QMatrixClient::Room::typingChanged, this, &ChatRoomWidget::typingChanged );
@@ -110,8 +110,11 @@ void ChatRoomWidget::setRoom(QMatrixClient::Room* room)
         m_currentRoom->setShown(true);
         topicChanged();
         typingChanged();
+    } else {
+        m_topicLabel->clear();
+        m_currentlyTyping->clear();
     }
-    m_messageModel->changeRoom( room );
+    m_messageModel->changeRoom( m_currentRoom );
     //m_messageView->scrollToBottom();
     QObject* rootItem = m_quickView->rootObject();
     QMetaObject::invokeMethod(rootItem, "scrollToBottom");
@@ -162,11 +165,14 @@ void ChatRoomWidget::sendLine()
     // Commands available without current room
     if( text.startsWith("/join") )
     {
-        QStringList splitted = text.split(' ');
-        if( splitted.count() > 1 )
-            m_currentConnection->joinRoom( splitted[1] );
+        QString roomName = text.section(' ', 1, 1, QString::SectionSkipEmpty);
+        if( !roomName.isEmpty() )
+            m_currentConnection->joinRoom( roomName );
         else
-            qDebug() << "No arguments for join";
+        {
+            qDebug() << "No arguments for /join, going interactive";
+            emit joinRoomNeedsInteraction();
+        }
     }
     else // Commands available only in the room context
         if (m_currentRoom)

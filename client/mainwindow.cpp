@@ -26,8 +26,12 @@
 #include <QtWidgets/QMenu>
 #include <QtWidgets/QAction>
 #include <QtWidgets/QInputDialog>
+#include <QtWidgets/QStatusBar>
+#include <QtWidgets/QLabel>
+#include <QtGui/QMovie>
 
 #include "quaternionconnection.h"
+#include "quaternionroom.h"
 #include "roomlistdock.h"
 #include "userlistdock.h"
 #include "chatroomwidget.h"
@@ -45,16 +49,66 @@ MainWindow::MainWindow()
     addDockWidget(Qt::RightDockWidgetArea, userListDock);
     chatRoomWidget = new ChatRoomWidget(this);
     setCentralWidget(chatRoomWidget);
+    connect( chatRoomWidget, &ChatRoomWidget::joinRoomNeedsInteraction, this, &MainWindow::showJoinRoomDialog);
     connect( roomListDock, &RoomListDock::roomSelected, chatRoomWidget, &ChatRoomWidget::setRoom );
     connect( roomListDock, &RoomListDock::roomSelected, userListDock, &UserListDock::setRoom );
     systemTray = new SystemTray(this);
     systemTray->show();
+    createMenu();
+    loadSettings();
+    statusBar(); // Make sure it is displayed from the start
     show();
+    systemTray->show();
     QTimer::singleShot(0, this, SLOT(initialize()));
 }
 
 MainWindow::~MainWindow()
 {
+}
+
+void MainWindow::createMenu()
+{
+    // Connection menu
+    auto connectionMenu = menuBar()->addMenu(tr("&Connection"));
+
+    loginAction = connectionMenu->addAction(tr("&Login..."));
+    connect( loginAction, &QAction::triggered, [=]{ showLoginWindow(); } );
+
+    logoutAction = connectionMenu->addAction(tr("&Logout"));
+    connect( logoutAction, &QAction::triggered, [=]{ logout(); } );
+    logoutAction->setEnabled(false); // we start in a logged out state
+
+    connectionMenu->addSeparator();
+
+    auto quitAction = connectionMenu->addAction(tr("&Quit"));
+    quitAction->setShortcut(QKeySequence::Quit);
+    connect( quitAction, &QAction::triggered, qApp, &QApplication::closeAllWindows );
+
+    // Room menu
+    auto roomMenu = menuBar()->addMenu(tr("&Room"));
+
+    auto joinRoomAction = roomMenu->addAction(tr("&Join Room..."));
+    connect( joinRoomAction, &QAction::triggered, [=]{ showJoinRoomDialog(); } );
+}
+
+void MainWindow::loadSettings()
+{
+    QMatrixClient::SettingsGroup sg("UI/MainWindow");
+    if (sg.contains("normal_geometry"))
+        setGeometry(sg.value("normal_geometry").toRect());
+    if (sg.value("maximized").toBool())
+        showMaximized();
+    if (sg.contains("parts_state"))
+        restoreState(sg.value("window_parts_state").toByteArray());
+}
+
+void MainWindow::saveSettings() const
+{
+    QMatrixClient::SettingsGroup sg("UI/MainWindow");
+    sg.setValue("normal_geometry", normalGeometry());
+    sg.setValue("maximized", isMaximized());
+    sg.setValue("window_parts_state", saveState());
+    sg.sync();
 }
 
 void MainWindow::enableDebug()
@@ -64,30 +118,13 @@ void MainWindow::enableDebug()
 
 void MainWindow::initialize()
 {
-    auto menuBar = new QMenuBar();
-    { // Connection menu
-        auto connectionMenu = menuBar->addMenu(tr("&Connection"));
+    busyIndicator = new QMovie(":/busy.gif");
+    busyLabel = new QLabel(this);
+    busyLabel->setMovie(busyIndicator);
+    busyLabel->hide();
+    statusBar()->setSizeGripEnabled(false);
+    statusBar()->addPermanentWidget(busyLabel);
 
-        loginAction = connectionMenu->addAction(tr("&Login..."));
-        connect( loginAction, &QAction::triggered, this, &MainWindow::showLoginWindow );
-
-        logoutAction = connectionMenu->addAction(tr("&Logout"));
-        connect( logoutAction, &QAction::triggered, this, &MainWindow::logout );
-
-        connectionMenu->addSeparator();
-
-        auto quitAction = connectionMenu->addAction(tr("&Quit"));
-        quitAction->setShortcut(QKeySequence::Quit);
-        connect( quitAction, &QAction::triggered, qApp, &QApplication::quit );
-    }
-    { // Room menu
-        auto roomMenu = menuBar->addMenu(tr("&Room"));
-
-        auto joinRoomAction = roomMenu->addAction(tr("&Join Room..."));
-        connect( joinRoomAction, &QAction::triggered, this, &MainWindow::showJoinRoomDialog );
-    }
-
-    setMenuBar(menuBar);
     invokeLogin();
 }
 
@@ -119,16 +156,17 @@ void MainWindow::setConnection(QuaternionConnection* newConnection)
         using QMatrixClient::Connection;
         connect( connection, &Connection::connectionError, this, &MainWindow::connectionError );
         connect( connection, &Connection::syncDone, this, &MainWindow::gotEvents );
-        connect( connection, &Connection::connected, this, &MainWindow::getNewEvents );
+        connect( connection, &Connection::connected, this, &MainWindow::initialSync );
         connect( connection, &Connection::reconnected, this, &MainWindow::getNewEvents );
-        connect( connection, &Connection::loginError, this, &MainWindow::loggedOut);
-        connect( connection, &Connection::loggedOut, this, &MainWindow::loggedOut);
+        connect( connection, &Connection::loginError, this, &MainWindow::loggedOut );
+        connect( connection, &Connection::loggedOut, [=]{ loggedOut(); } );
     }
 }
 
-void MainWindow::showLoginWindow()
+void MainWindow::showLoginWindow(const QString& statusMessage)
 {
     LoginDialog dialog(this);
+    dialog.setStatusMessage(statusMessage);
     if( dialog.exec() )
     {
         setConnection(dialog.connection());
@@ -142,7 +180,7 @@ void MainWindow::showLoginWindow()
         }
         account.sync();
 
-        getNewEvents();
+        initialSync();
     }
 }
 
@@ -169,6 +207,9 @@ void MainWindow::invokeLogin()
 
 void MainWindow::logout()
 {
+    if( !connection )
+        return; // already logged out
+
     QMatrixClient::AccountSettings account { connection->userId() };
     account.clearAccessToken();
     account.sync();
@@ -176,23 +217,36 @@ void MainWindow::logout()
     connection->logout();
 }
 
-void MainWindow::loggedOut()
+void MainWindow::loggedOut(const QString& message)
 {
     loginAction->setEnabled(true);
     logoutAction->setEnabled(false);
     setConnection(nullptr);
-    loginAction->trigger();
+    showLoginWindow(message);
+}
+
+void MainWindow::initialSync()
+{
+    setWindowTitle(connection->userId());
+    busyLabel->show();
+    busyIndicator->start();
+    statusBar()->showMessage("Syncing, please wait...");
+    getNewEvents();
 }
 
 void MainWindow::getNewEvents()
 {
-    //qDebug() << "getNewEvents";
     connection->sync(30*1000);
 }
 
 void MainWindow::gotEvents()
 {
-    // qDebug() << "newEvents";
+    if( busyLabel->isVisible() )
+    {
+        busyLabel->hide();
+        busyIndicator->stop();
+        statusBar()->showMessage(tr("Connected as %1").arg(connection->userId()), 5000);
+    }
     getNewEvents();
 }
 
@@ -206,7 +260,7 @@ void MainWindow::connectionError(QString error)
 void MainWindow::closeEvent(QCloseEvent* event)
 {
     setConnection(nullptr);
-
+    saveSettings();
     event->accept();
 }
 
