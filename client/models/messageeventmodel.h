@@ -17,30 +17,23 @@
  *                                                                        *
  **************************************************************************/
 
-#ifndef LOGMESSAGEMODEL_H
-#define LOGMESSAGEMODEL_H
-
-#include "../quaternionroom.h"
+#pragma once
 
 #include <QtCore/QAbstractListModel>
 #include <QtCore/QModelIndex>
 
+namespace QMatrixClient
+{
+    class Connection;
+}
 class Message;
+class QuaternionRoom;
 
 class MessageEventModel: public QAbstractListModel
 {
         Q_OBJECT
+        Q_PROPERTY(QString lastReadId READ lastReadId NOTIFY lastReadIdChanged STORED false)
     public:
-        enum EventRoles {
-            EventTypeRole = Qt::UserRole + 1,
-            TimeRole,
-            DateRole,
-            AuthorRole,
-            ContentRole,
-            ContentTypeRole,
-            HighlightRole
-        };
-
         MessageEventModel(QObject* parent = nullptr);
         virtual ~MessageEventModel();
 
@@ -53,9 +46,12 @@ class MessageEventModel: public QAbstractListModel
         QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
         QHash<int, QByteArray> roleNames() const override;
 
+        QString lastReadId() const;
+
+    signals:
+        void lastReadIdChanged();
+
     private:
         QMatrixClient::Connection* m_connection;
         QuaternionRoom* m_currentRoom;
 };
-
-#endif // LOGMESSAGEMODEL_H

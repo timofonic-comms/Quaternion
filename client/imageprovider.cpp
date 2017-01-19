@@ -20,10 +20,6 @@
 #include "imageprovider.h"
 #include <jobs/mediathumbnailjob.h>
 
-#include <QtCore/QMutex>
-#include <QtCore/QMutexLocker>
-#include <QtCore/QWaitCondition>
-
 #include <QtCore/QDebug>
 
 ImageProvider::ImageProvider(QMatrixClient::Connection* connection)
@@ -39,13 +35,12 @@ QPixmap ImageProvider::requestPixmap(const QString& id, QSize* size, const QSize
     QMutexLocker locker(&m_mutex);
     qDebug() << "ImageProvider::requestPixmap:" << id;
 
-    QWaitCondition* condition = new QWaitCondition();
+    QWaitCondition condition;
     QPixmap result;
     QMetaObject::invokeMethod(this, "doRequest", Qt::QueuedConnection,
                               Q_ARG(QString, id), Q_ARG(QSize, requestedSize),
-                              Q_ARG(QPixmap*, &result), Q_ARG(QWaitCondition*, condition));
-    condition->wait(&m_mutex);
-    delete condition;
+                              Q_ARG(QPixmap*, &result), Q_ARG(QWaitCondition*, &condition));
+    condition.wait(&m_mutex);
 
     if( size != nullptr )
     {
@@ -65,9 +60,6 @@ void ImageProvider::doRequest(QString id, QSize requestedSize, QPixmap* pixmap, 
 {
     QMutexLocker locker(&m_mutex);
 
-    int width = requestedSize.width() > 0 ? requestedSize.width() : 100;
-    int height = requestedSize.height() > 0 ? requestedSize.height() : 100;
-
     if( !m_connection )
     {
         qDebug() << "ImageProvider::requestPixmap: no connection!";
@@ -75,8 +67,8 @@ void ImageProvider::doRequest(QString id, QSize requestedSize, QPixmap* pixmap, 
         condition->wakeAll();
     }
 
-    QMatrixClient::MediaThumbnailJob* job = m_connection->getThumbnail(QUrl(id), width, height);
-    QObject::connect( job, &QMatrixClient::MediaThumbnailJob::success, this, &ImageProvider::gotImage );
+    auto job = m_connection->getThumbnail(QUrl(id), requestedSize.expandedTo({100,100}));
+    connect( job, &QMatrixClient::MediaThumbnailJob::success, this, &ImageProvider::gotImage );
     ImageProviderData data = { pixmap, condition, requestedSize };
     m_callmap.insert(job, data);
 }

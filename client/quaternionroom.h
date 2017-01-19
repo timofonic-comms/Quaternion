@@ -17,8 +17,7 @@
  *                                                                        *
  **************************************************************************/
 
-#ifndef QUATERNIONROOM_H
-#define QUATERNIONROOM_H
+#pragma once
 
 #include "lib/room.h"
 
@@ -28,17 +27,22 @@ class QuaternionRoom: public QMatrixClient::Room
 {
         Q_OBJECT
     public:
-        using Timeline = QList<Message*>;
+        using Timeline = QMatrixClient::Owning< QList<Message*> >;
         using size_type = Timeline::size_type;
 
         QuaternionRoom(QMatrixClient::Connection* connection, QString roomId);
+        ~QuaternionRoom();
 
         /**
          * set/get whether this room is currently show to the user.
          * This is used to mark messages as read.
          */
         void setShown(bool shown);
+        void lookAt();
         bool isShown();
+
+        void setCachedInput(const QString& input);
+        const QString& cachedInput() const;
 
         const Timeline& messages() const;
 
@@ -61,8 +65,7 @@ class QuaternionRoom: public QMatrixClient::Room
         Timeline m_messages;
         bool m_shown;
         bool m_unreadMessages;
+        QString m_cachedInput;
 
         Message* makeMessage(QMatrixClient::Event* e);
 };
-
-#endif // QUATERNIONROOM_H

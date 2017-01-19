@@ -17,22 +17,21 @@
  *                                                                        *
  **************************************************************************/
 
-#ifndef CHATROOMWIDGET_H
-#define CHATROOMWIDGET_H
+#pragma once
 
 #include <QtWidgets/QWidget>
-
-#include <QtQuick/QQuickView>
 
 namespace QMatrixClient
 {
     class Room;
     class Connection;
+    class User;
     class Event;
 }
 class MessageEventModel;
 class QuaternionRoom;
 class ImageProvider;
+class QQuickView;
 class QListView;
 class QLineEdit;
 class QLabel;
@@ -45,9 +44,13 @@ class ChatRoomWidget: public QWidget
         virtual ~ChatRoomWidget();
 
         void enableDebug();
+        void triggerCompletion();
+        void cancelCompletion();
+        void lookAtRoom();
 
     signals:
         void joinRoomNeedsInteraction();
+        void showStatusMessage(const QString& message, int timeout);
 
     public slots:
         void setRoom(QuaternionRoom* room);
@@ -63,6 +66,15 @@ class ChatRoomWidget: public QWidget
         MessageEventModel* m_messageModel;
         QuaternionRoom* m_currentRoom;
         QMatrixClient::Connection* m_currentConnection;
+        bool m_completing;
+        QStringList m_completionList;
+        int m_completionListPosition;
+        int m_completionInsertStart;
+        int m_completionLength;
+        int m_completionCursorOffset;
+
+        void findCompletionMatches(const QString& pattern);
+        void startNewCompletion();
 
         //QListView* m_messageView;
         QQuickView* m_quickView;
@@ -71,5 +83,3 @@ class ChatRoomWidget: public QWidget
         QLabel* m_currentlyTyping;
         QLabel* m_topicLabel;
 };
-
-#endif // CHATROOMWIDGET_H

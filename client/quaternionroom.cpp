@@ -30,8 +30,23 @@ QuaternionRoom::QuaternionRoom(QMatrixClient::Connection* connection, QString ro
 {
     m_shown = false;
     m_unreadMessages = false;
+    m_cachedInput = "";
     connect( this, &QuaternionRoom::notificationCountChanged, this, &QuaternionRoom::countChanged );
     connect( this, &QuaternionRoom::highlightCountChanged, this, &QuaternionRoom::countChanged );
+}
+
+QuaternionRoom::~QuaternionRoom()
+{ }
+
+void QuaternionRoom::lookAt()
+{
+    markMessagesAsRead();
+    if( m_unreadMessages )
+    {
+        m_unreadMessages = false;
+        emit unreadMessagesChanged(this);
+        qDebug() << displayName() << "no unread messages";
+    }
 }
 
 void QuaternionRoom::setShown(bool shown)
@@ -39,14 +54,6 @@ void QuaternionRoom::setShown(bool shown)
     if( shown == m_shown )
         return;
     m_shown = shown;
-    if( m_shown && m_unreadMessages )
-    {
-        if( !messageEvents().empty() )
-            markMessageAsRead( messageEvents().last() );
-        m_unreadMessages = false;
-        emit unreadMessagesChanged(this);
-        qDebug() << displayName() << "no unread messages";
-    }
     if( m_shown )
     {
         resetHighlightCount();
@@ -79,14 +86,20 @@ void QuaternionRoom::doAddNewMessageEvents(const QMatrixClient::Events& events)
     Room::doAddNewMessageEvents(events);
 
     m_messages.reserve(m_messages.size() + events.size());
+    bool new_message = false;
+    QMatrixClient::Event* lastOwnMessage = nullptr;
     for (auto e: events)
-        m_messages.push_back(makeMessage(e));
-
-    if( m_shown )
     {
-        markMessageAsRead(messageEvents().back());
+        m_messages.push_back(makeMessage(e));
+        if (e->senderId() == connection()->userId())
+            lastOwnMessage = e;
+        else if (e->type() == QMatrixClient::EventType::RoomMessage)
+            new_message = true;
     }
-    else if( !m_unreadMessages )
+    if (lastOwnMessage)
+        promoteReadMarker(connection()->user(), lastOwnMessage->id());
+
+    if( !m_unreadMessages && new_message)
     {
         m_unreadMessages = true;
         emit unreadMessagesChanged(this);
@@ -106,13 +119,23 @@ void QuaternionRoom::doAddHistoricalMessageEvents(const QMatrixClient::Events& e
 void QuaternionRoom::processEphemeralEvent(QMatrixClient::Event* event)
 {
     QMatrixClient::Room::processEphemeralEvent(event);
-    QString lastReadId = lastReadEvent(connection()->user());
-    if( m_unreadMessages &&
-            (messageEvents().isEmpty() || lastReadId == messageEvents().last()->id()) )
+    if ( m_unreadMessages && event->type() == QMatrixClient::EventType::Receipt )
     {
-        m_unreadMessages = false;
-        emit unreadMessagesChanged(this);
-        qDebug() << displayName() << "no unread messages";
+        QString lastReadId = lastReadEvent(connection()->user());
+        // Older Qt doesn't provide QVector::rbegin()/rend()
+        for (auto it = messageEvents().end(); it != messageEvents().begin(); )
+        {
+            --it;
+            if ( lastReadId == (*it)->id() )
+            {
+                m_unreadMessages = false;
+                emit unreadMessagesChanged(this);
+                qDebug() << displayName() << "no unread messages";
+                break;
+            }
+            if ( (*it)->type() == QMatrixClient::EventType::RoomMessage )
+                break;
+        }
     }
 }
 
@@ -125,3 +148,12 @@ void QuaternionRoom::countChanged()
     }
 }
 
+const QString& QuaternionRoom::cachedInput() const
+{
+    return m_cachedInput;
+}
+
+void QuaternionRoom::setCachedInput(const QString& input)
+{
+    m_cachedInput = input;
+}

@@ -29,6 +29,7 @@
 #include <QtWidgets/QStatusBar>
 #include <QtWidgets/QLabel>
 #include <QtGui/QMovie>
+#include <QtGui/QCloseEvent>
 
 #include "quaternionconnection.h"
 #include "quaternionroom.h"
@@ -52,8 +53,8 @@ MainWindow::MainWindow()
     connect( chatRoomWidget, &ChatRoomWidget::joinRoomNeedsInteraction, this, &MainWindow::showJoinRoomDialog);
     connect( roomListDock, &RoomListDock::roomSelected, chatRoomWidget, &ChatRoomWidget::setRoom );
     connect( roomListDock, &RoomListDock::roomSelected, userListDock, &UserListDock::setRoom );
+    connect( chatRoomWidget, &ChatRoomWidget::showStatusMessage, statusBar(), &QStatusBar::showMessage );
     systemTray = new SystemTray(this);
-    systemTray->show();
     createMenu();
     loadSettings();
     statusBar(); // Make sure it is displayed from the start
@@ -64,6 +65,11 @@ MainWindow::MainWindow()
 
 MainWindow::~MainWindow()
 {
+}
+
+void MainWindow::activity()
+{
+    chatRoomWidget->lookAtRoom();
 }
 
 void MainWindow::createMenu()
@@ -133,7 +139,6 @@ void MainWindow::setConnection(QuaternionConnection* newConnection)
     if (connection)
     {
         chatRoomWidget->setConnection(nullptr);
-        userListDock->setConnection(nullptr);
         roomListDock->setConnection(nullptr);
         systemTray->setConnection(nullptr);
 
@@ -149,7 +154,6 @@ void MainWindow::setConnection(QuaternionConnection* newConnection)
     if (connection)
     {
         chatRoomWidget->setConnection(connection);
-        userListDock->setConnection(connection);
         roomListDock->setConnection(connection);
         systemTray->setConnection(connection);
 

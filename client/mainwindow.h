@@ -17,8 +17,7 @@
  *                                                                        *
  **************************************************************************/
 
-#ifndef MAINWINDOW_H
-#define MAINWINDOW_H
+#pragma once
 
 #include <QtWidgets/QMainWindow>
 
@@ -43,6 +42,7 @@ class MainWindow: public QMainWindow
         virtual ~MainWindow();
 
         void enableDebug();
+        void activity();
 
         void setConnection(QuaternionConnection* newConnection);
 
@@ -81,5 +81,3 @@ class MainWindow: public QMainWindow
         void loadSettings();
         void saveSettings() const;
 };
-
-#endif // MAINWINDOW_H
