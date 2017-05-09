@@ -19,122 +19,53 @@
 
 #include "logindialog.h"
 
-#include <QtWidgets/QLineEdit>
-#include <QtWidgets/QPushButton>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QCheckBox>
-#include <QtWidgets/QFormLayout>
+#include <QtWidgets/QStackedLayout>
 
-#include <QtCore/QUrl>
-
+#include "login/connectscreen.h"
+#include "login/loginscreen.h"
 #include "quaternionconnection.h"
 #include "settings.h"
 
 LoginDialog::LoginDialog(QWidget* parent)
     : QDialog(parent)
-    , m_connection(nullptr)
 {
-    serverEdit = new QLineEdit("https://matrix.org");
-    userEdit = new QLineEdit();
-    passwordEdit = new QLineEdit();
-    passwordEdit->setEchoMode( QLineEdit::Password );
-    saveTokenCheck = new QCheckBox("Stay logged in");
-    statusLabel = new QLabel("Welcome to Quaternion");
-    loginButton = new QPushButton("Login");
+    connectScreen = new ConnectScreen();
+    loginScreen = new LoginScreen();
 
-    QFormLayout* formLayout = new QFormLayout();
-    formLayout->addRow("Server", serverEdit);
-    formLayout->addRow("User", userEdit);
-    formLayout->addRow("Password", passwordEdit);
-    formLayout->addRow(saveTokenCheck);
-    
-    QVBoxLayout* mainLayout = new QVBoxLayout();
-    mainLayout->addLayout(formLayout);
-    mainLayout->addWidget(loginButton);
-    mainLayout->addWidget(statusLabel);
-    
-    setLayout(mainLayout);
+    QStackedLayout* layout = new QStackedLayout();
+    layout->addWidget(connectScreen);
+    layout->addWidget(loginScreen);
 
-    {
-        // Fill defaults
-        using namespace QMatrixClient;
-        QStringList accounts { SettingsGroup("Accounts").childGroups() };
-        if ( !accounts.empty() )
-        {
-            AccountSettings account { accounts.front() };
-            QUrl homeserver = account.homeserver();
-            QString username = account.userId();
-            if (username.startsWith('@'))
-            {
-                QString serverpart = ":" + homeserver.host();
-                if (homeserver.port() != -1)
-                    serverpart += ":" + QString::number(homeserver.port());
-                if (username.endsWith(serverpart))
-                {
-                    // Keep only the local part of the user id
-                    username.remove(0, 1).chop(serverpart.size());
-                }
-            }
-            serverEdit->setText(homeserver.toString());
-            userEdit->setText(username);
-            saveTokenCheck->setChecked(account.keepLoggedIn());
-        }
-        else
-        {
-            serverEdit->setText("https://matrix.org");
-            saveTokenCheck->setChecked(false);
-        }
-    }
-    if (userEdit->text().isEmpty())
-        userEdit->setFocus();
-    else
-        passwordEdit->setFocus();
+    setLayout(layout);
 
-    connect( loginButton, &QPushButton::clicked, this, &LoginDialog::login );
+    connect( connectScreen, &ConnectScreen::connected, this, &LoginDialog::connected );
+    connect( loginScreen, &LoginScreen::loggedIn, this, &QDialog::accept );
+    connect( loginScreen, &LoginScreen::changeHomeserver, this, &LoginDialog::changeHomeserver );
 }
 
 void LoginDialog::setStatusMessage(const QString& msg)
 {
-    statusLabel->setText(msg);
+    connectScreen->setStatusMessage(msg);
 }
 
 QuaternionConnection* LoginDialog::connection() const
 {
-    return m_connection;
+    return loginScreen->connection();
 }
 
 bool LoginDialog::keepLoggedIn() const
 {
-    return saveTokenCheck->isChecked();
+    return loginScreen->keepLoggedIn();
 }
 
-void LoginDialog::login()
+void LoginDialog::connected()
 {
-    setStatusMessage("Connecting and logging in, please wait");
-    setDisabled(true);
-    QUrl url = QUrl::fromUserInput(serverEdit->text());
-    QString user = userEdit->text();
-    QString password = passwordEdit->text();
-
-    setConnection(new QuaternionConnection(url));
-
-    connect( m_connection, &QMatrixClient::Connection::connected, this, &QDialog::accept );
-    connect( m_connection, &QMatrixClient::Connection::loginError, this, &LoginDialog::error );
-    m_connection->connectToServer(user, password);
+    loginScreen->setServerUrl(connectScreen->serverUrl());
+    loginScreen->setLoginTypes(connectScreen->loginTypes());
+    qobject_cast<QStackedLayout*>(layout())->setCurrentWidget(loginScreen);
 }
 
-void LoginDialog::error(QString error)
+void LoginDialog::changeHomeserver()
 {
-    setStatusMessage( error );
-    setConnection(nullptr);
-    setDisabled(false);
-}
-
-void LoginDialog::setConnection(QuaternionConnection* connection)
-{
-    if (m_connection != nullptr) {
-        m_connection->deleteLater();
-    }
-
-    m_connection = connection;
+    qobject_cast<QStackedLayout*>(layout())->setCurrentWidget(connectScreen);
 }

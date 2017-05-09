@@ -42,7 +42,7 @@ else ( CMAKE_VERSION VERSION_LESS "3.1" )
 endif ( CMAKE_VERSION VERSION_LESS "3.1" )
 
 # Find the libraries
-find_package(Qt5 5.2.1 REQUIRED Widgets Network Quick Qml Gui)
+find_package(Qt5 5.2.1 REQUIRED Widgets Network Quick Qml Gui WebChannel WebEngineWidgets)
 get_filename_component(Qt5_Prefix "${Qt5_DIR}/../../../.." ABSOLUTE)
 
 message( STATUS )
@@ -69,6 +69,11 @@ set(quaternion_SRCS
     client/imageprovider.cpp
     client/activitydetector.cpp
     client/logindialog.cpp
+    client/login/connectscreen.cpp
+    client/login/loginscreen.cpp
+    client/login/loginwidget.cpp
+    client/login/passwordloginwidget.cpp
+    client/login/fallbackloginwidget.cpp
     client/mainwindow.cpp
     client/roomlistdock.cpp
     client/userlistdock.cpp
@@ -93,7 +98,7 @@ QT5_ADD_RESOURCES(quaternion_QRC_SRC ${quaternion_QRC})
 # TODO: MacOS builders, should MACOSX_BUNDLE be specified here as well?
 add_executable(quaternion WIN32 ${quaternion_SRCS} ${quaternion_QRC_SRC})
 
-target_link_libraries(quaternion qmatrixclient Qt5::Widgets Qt5::Quick Qt5::Qml Qt5::Gui Qt5::Network)
+target_link_libraries(quaternion qmatrixclient Qt5::Widgets Qt5::Quick Qt5::Qml Qt5::Gui Qt5::Network Qt5::WebChannel Qt5::WebEngineWidgets)
 
 # Installation
 

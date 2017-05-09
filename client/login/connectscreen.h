@@ -1,6 +1,6 @@
 /**************************************************************************
  *                                                                        *
- * Copyright (C) 2015 Felix Rohrbach <kde@fxrh.de>                        *
+ * Copyright (C) 2016 Shell Turner <cam.turn@gmail.com>                   *
  *                                                                        *
  * This program is free software; you can redistribute it and/or          *
  * modify it under the terms of the GNU General Public License            *
@@ -19,27 +19,42 @@
 
 #pragma once
 
-#include <QtWidgets/QDialog>
+#include <QtWidgets/QWidget>
+#include <QtCore/QVector>
+#include <QtCore/QUrl>
 
-class ConnectScreen;
-class LoginScreen;
+class QLineEdit;
+class QPushButton;
+class QLabel;
 class QuaternionConnection;
 
-class LoginDialog : public QDialog
+class ConnectScreen : public QWidget
 {
         Q_OBJECT
     public:
-        LoginDialog(QWidget* parent = nullptr);
+        ConnectScreen(QWidget* parent = nullptr);
 
         void setStatusMessage(const QString& msg);
-        QuaternionConnection* connection() const;
-        bool keepLoggedIn() const;
+        QUrl serverUrl() const;
+        QVector<QString> loginTypes() const;
+
+    signals:
+        void connected();
 
     private slots:
-        void connected();
-        void changeHomeserver();
+        void fetchLoginTypes();
+
+    protected:
+        virtual void showEvent(QShowEvent* event) override;
 
     private:
-        ConnectScreen* connectScreen;
-        LoginScreen* loginScreen;
+        QLineEdit* serverEdit;
+        QPushButton* connectButton;
+        QLabel* statusLabel;
+
+        QuaternionConnection* m_connection;
+        QUrl m_serverUrl;
+        QVector<QString> m_loginTypes;
+
+        void setConnection(QuaternionConnection* connection);
 };
