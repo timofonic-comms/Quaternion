@@ -176,6 +176,7 @@ void MainWindow::setConnection(QuaternionConnection* newConnection)
 
 void MainWindow::showLoginWindow(const QString& statusMessage)
 {
+    hide();
     LoginDialog dialog(this);
     dialog.setStatusMessage(statusMessage);
     if( dialog.exec() )
@@ -193,6 +194,7 @@ void MainWindow::showLoginWindow(const QString& statusMessage)
 
         initialSync();
     }
+    show();
 }
 
 void MainWindow::invokeLogin()
